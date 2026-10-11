@@ -268,6 +268,7 @@ function AddSessionDialog({
     end_time: '',
     facilitator_id: '',
     location: 'discord' as Session['location'],
+    link: '',
     description: '',
     learning_objectives: '',
     resources_url: '',
@@ -294,6 +295,7 @@ function AddSessionDialog({
         end_time: new Date(form.end_time).toISOString(),
         facilitator_id: form.facilitator_id,
         location: form.location,
+        link: form.location === 'in-person' ? null : form.link.trim() || null,
         description: form.description || null,
         learning_objectives: form.learning_objectives || null,
         resources_url: form.resources_url || null,
@@ -307,6 +309,7 @@ function AddSessionDialog({
         end_time: '',
         facilitator_id: '',
         location: 'discord',
+        link: '',
         description: '',
         learning_objectives: '',
         resources_url: '',
@@ -434,6 +437,19 @@ function AddSessionDialog({
               </Select>
             </div>
           </div>
+          {form.location !== 'in-person' && (
+            <div className="flex flex-col gap-2">
+              <Label htmlFor="cd-link">Meeting link</Label>
+              <Input
+                id="cd-link"
+                type="url"
+                placeholder="https://meet.google.com/..."
+                value={form.link}
+                onChange={(e) => setForm((f) => ({ ...f, link: e.target.value }))}
+              />
+              <p className="text-xs text-muted-foreground">Students get a Join button with this link.</p>
+            </div>
+          )}
           <div className="flex flex-col gap-2">
             <Label htmlFor="cd-description">Description</Label>
             <Textarea

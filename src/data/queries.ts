@@ -160,6 +160,7 @@ export async function createSession(input: {
   end_time: string
   facilitator_id: string
   location: Session['location']
+  link?: string | null
   description?: string | null
   learning_objectives?: string | null
   resources_url?: string | null
@@ -180,6 +181,7 @@ export async function updateSession(
     end_time: string
     facilitator_id: string
     location: Session['location']
+    link: string | null
     learning_objectives: string | null
     resources_url: string | null
     status: SessionStatus
@@ -299,6 +301,22 @@ export async function getIntakeForm(studentId: string): Promise<IntakeForm | nul
     .select('*')
     .eq('student_id', studentId)
     .maybeSingle()
+
+  if (error) throw error
+  return data
+}
+
+export async function saveIntakeForm(input: {
+  student_id: string
+  motivation: string
+  experience_level: IntakeForm['experience_level']
+  goals: string
+}): Promise<IntakeForm> {
+  const { data, error } = await supabase
+    .from('intake_forms')
+    .upsert(input, { onConflict: 'student_id' })
+    .select()
+    .single()
 
   if (error) throw error
   return data

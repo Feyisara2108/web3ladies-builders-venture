@@ -24,7 +24,7 @@ import {
   DialogTrigger,
 } from '@/components/ui/dialog'
 import { createSession, listCohorts, listSessions, listUsers, updateSession } from '@/data/queries'
-import { formatDateTime, nowForDateTimeInput, stageLabels } from '@/lib/format'
+import { formatDateTime, nowForDateTimeInput, stageLabels, toDateTimeInput } from '@/lib/format'
 import { getErrorMessage } from '@/lib/utils'
 import { useToast } from '@/lib/toast'
 import type { Cohort, ProjectStage, Session, SessionStatus, User } from '@/types'
@@ -45,6 +45,7 @@ type SessionForm = {
   end_time: string
   facilitator_id: string
   location: Session['location']
+  link: string
   description: string
   learning_objectives: string
   resources_url: string
@@ -61,6 +62,7 @@ function emptyForm(defaultCohortId: string, defaultFacilitatorId: string): Sessi
     end_time: '',
     facilitator_id: defaultFacilitatorId,
     location: 'discord',
+    link: '',
     description: '',
     learning_objectives: '',
     resources_url: '',
@@ -74,10 +76,11 @@ function formFromSession(session: Session): SessionForm {
     cohort_id: session.cohort_id,
     type: session.type,
     stage: session.stage ?? 'none',
-    start_time: session.start_time.slice(0, 16),
-    end_time: session.end_time.slice(0, 16),
+    start_time: toDateTimeInput(session.start_time),
+    end_time: toDateTimeInput(session.end_time),
     facilitator_id: session.facilitator_id ?? '',
     location: session.location,
+    link: session.link ?? '',
     description: session.description ?? '',
     learning_objectives: session.learning_objectives ?? '',
     resources_url: session.resources_url ?? '',
@@ -111,7 +114,7 @@ function SessionDialog({
   // min-date validation on an already-valid existing value.
   const minStart =
     session && new Date(session.start_time).getTime() < Date.now()
-      ? session.start_time.slice(0, 16)
+      ? toDateTimeInput(session.start_time)
       : nowForDateTimeInput()
 
   React.useEffect(() => {
@@ -139,6 +142,7 @@ function SessionDialog({
         end_time: new Date(form.end_time).toISOString(),
         facilitator_id: form.facilitator_id,
         location: form.location,
+        link: form.location === 'in-person' ? null : form.link.trim() || null,
         description: form.description || null,
         learning_objectives: form.learning_objectives || null,
         resources_url: form.resources_url || null,
@@ -316,6 +320,19 @@ function SessionDialog({
               </Select>
             </div>
           </div>
+          {form.location !== 'in-person' && (
+            <div className="flex flex-col gap-2">
+              <Label htmlFor="session-link">Meeting link</Label>
+              <Input
+                id="session-link"
+                type="url"
+                placeholder="https://meet.google.com/..."
+                value={form.link}
+                onChange={(e) => setForm((f) => ({ ...f, link: e.target.value }))}
+              />
+              <p className="text-xs text-muted-foreground">Students get a Join button with this link.</p>
+            </div>
+          )}
           <div className="flex flex-col gap-2">
             <Label htmlFor="description">Description</Label>
             <Textarea

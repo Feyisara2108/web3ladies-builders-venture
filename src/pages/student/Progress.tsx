@@ -1,4 +1,5 @@
 import * as React from 'react'
+import { Link } from 'react-router-dom'
 import { Loader2 } from 'lucide-react'
 import { useAuth } from '@/lib/auth'
 import { PageHeader } from '@/components/PageHeader'
@@ -113,7 +114,11 @@ export function StudentProgress() {
             </div>
             {!project && (
               <p className="text-sm text-muted-foreground">
-                You need a project before you can post updates — ask your admin to set one up.
+                You need a project before you can post updates —{' '}
+                <Link to="/workspace" className="text-primary hover:underline">
+                  start one in your Workspace
+                </Link>
+                .
               </p>
             )}
             {submitError && <p className="text-sm text-destructive">{submitError}</p>}
