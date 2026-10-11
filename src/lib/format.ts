@@ -33,10 +33,15 @@ export function timeAgo(iso: string) {
   return `${Math.floor(diffDays / 30)}mo ago`
 }
 
-export function nowForDateTimeInput() {
-  const now = new Date()
-  const local = new Date(now.getTime() - now.getTimezoneOffset() * 60000)
+/** A timestamp as a local-time "YYYY-MM-DDTHH:mm" string for <input type="datetime-local">. */
+export function toDateTimeInput(iso: string | Date) {
+  const date = new Date(iso)
+  const local = new Date(date.getTime() - date.getTimezoneOffset() * 60000)
   return local.toISOString().slice(0, 16)
+}
+
+export function nowForDateTimeInput() {
+  return toDateTimeInput(new Date())
 }
 
 export function todayForDateInput() {
