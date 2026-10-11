@@ -160,6 +160,7 @@ export async function createSession(input: {
   end_time: string
   facilitator_id: string
   location: Session['location']
+  link?: string | null
   description?: string | null
   learning_objectives?: string | null
   resources_url?: string | null
@@ -180,6 +181,7 @@ export async function updateSession(
     end_time: string
     facilitator_id: string
     location: Session['location']
+    link: string | null
     learning_objectives: string | null
     resources_url: string | null
     status: SessionStatus
