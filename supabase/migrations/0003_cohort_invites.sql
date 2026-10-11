@@ -4,12 +4,12 @@
 -- server-side with the service_role key — this table itself stays
 -- admin-only, nothing here is publicly readable).
 
-create extension if not exists pgcrypto;
+create extension if not exists pgcrypto with schema extensions;
 
 create table public.cohort_invite_links (
   id uuid primary key default gen_random_uuid(),
   cohort_id uuid not null references public.cohorts (id) on delete cascade,
-  token text not null unique default encode(gen_random_bytes(16), 'hex'),
+  token text not null unique default encode(extensions.gen_random_bytes(16), 'hex'),
   expires_at timestamptz not null default (now() + interval '30 days'),
   max_uses integer,
   use_count integer not null default 0,
