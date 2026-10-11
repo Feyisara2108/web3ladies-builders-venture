@@ -9,9 +9,155 @@ import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { Button } from '@/components/ui/button'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
-import { getIntakeForm, updateOwnProfile } from '@/data/queries'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { getIntakeForm, saveIntakeForm, updateOwnProfile } from '@/data/queries'
 import { formatDate } from '@/lib/format'
+import { getErrorMessage } from '@/lib/utils'
 import type { IntakeForm } from '@/types'
+
+function IntakeCard({
+  studentId,
+  intake,
+  onSaved,
+}: {
+  studentId: string
+  intake: IntakeForm | null
+  onSaved: (intake: IntakeForm) => void
+}) {
+  const [editing, setEditing] = React.useState(!intake)
+  const [form, setForm] = React.useState({
+    experience_level: intake?.experience_level ?? ('' as IntakeForm['experience_level'] | ''),
+    motivation: intake?.motivation ?? '',
+    goals: intake?.goals ?? '',
+  })
+  const [saving, setSaving] = React.useState(false)
+  const [error, setError] = React.useState<string | null>(null)
+
+  React.useEffect(() => {
+    setEditing(!intake)
+    setForm({
+      experience_level: intake?.experience_level ?? '',
+      motivation: intake?.motivation ?? '',
+      goals: intake?.goals ?? '',
+    })
+  }, [intake])
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault()
+    if (!form.experience_level || !form.motivation.trim() || !form.goals.trim()) {
+      setError('Please fill in all three fields.')
+      return
+    }
+    setSaving(true)
+    setError(null)
+    try {
+      const saved = await saveIntakeForm({
+        student_id: studentId,
+        experience_level: form.experience_level,
+        motivation: form.motivation.trim(),
+        goals: form.goals.trim(),
+      })
+      onSaved(saved)
+    } catch (err) {
+      setError(getErrorMessage(err, 'Failed to save intake form'))
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  if (intake && !editing) {
+    return (
+      <Card>
+        <CardHeader className="flex-row items-start justify-between">
+          <div>
+            <CardTitle className="text-base">Intake form</CardTitle>
+            <CardDescription>Submitted {formatDate(intake.submitted_at)}</CardDescription>
+          </div>
+          <Button variant="ghost" size="sm" onClick={() => setEditing(true)}>
+            Edit
+          </Button>
+        </CardHeader>
+        <CardContent className="flex flex-col gap-3 text-sm">
+          <div>
+            <p className="font-medium">Experience level</p>
+            <p className="text-muted-foreground capitalize">{intake.experience_level}</p>
+          </div>
+          <div>
+            <p className="font-medium">Motivation</p>
+            <p className="text-muted-foreground">{intake.motivation}</p>
+          </div>
+          <div>
+            <p className="font-medium">Goals</p>
+            <p className="text-muted-foreground">{intake.goals}</p>
+          </div>
+        </CardContent>
+      </Card>
+    )
+  }
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="text-base">Intake form</CardTitle>
+        <CardDescription>
+          {intake ? 'Update your answers.' : 'Tell your mentors where you are starting from.'}
+        </CardDescription>
+      </CardHeader>
+      <CardContent>
+        <form className="flex flex-col gap-4" onSubmit={handleSubmit}>
+          <div className="flex flex-col gap-2">
+            <Label>Experience level</Label>
+            <Select
+              value={form.experience_level}
+              onValueChange={(v) =>
+                setForm((f) => ({ ...f, experience_level: v as IntakeForm['experience_level'] }))
+              }
+            >
+              <SelectTrigger>
+                <SelectValue placeholder="Choose one" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="beginner">Beginner</SelectItem>
+                <SelectItem value="intermediate">Intermediate</SelectItem>
+                <SelectItem value="advanced">Advanced</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="flex flex-col gap-2">
+            <Label htmlFor="intake-motivation">Why did you join?</Label>
+            <Textarea
+              id="intake-motivation"
+              rows={3}
+              value={form.motivation}
+              onChange={(e) => setForm((f) => ({ ...f, motivation: e.target.value }))}
+            />
+          </div>
+          <div className="flex flex-col gap-2">
+            <Label htmlFor="intake-goals">What do you want to achieve?</Label>
+            <Textarea
+              id="intake-goals"
+              rows={3}
+              value={form.goals}
+              onChange={(e) => setForm((f) => ({ ...f, goals: e.target.value }))}
+            />
+          </div>
+          {error && <p className="text-sm text-destructive">{error}</p>}
+          <div className="flex items-center gap-2">
+            <Button type="submit" disabled={saving}>
+              {saving && <Loader2 className="size-4 animate-spin" />}
+              {intake ? 'Save' : 'Submit'}
+            </Button>
+            {intake && (
+              <Button type="button" variant="ghost" onClick={() => setEditing(false)}>
+                Cancel
+              </Button>
+            )}
+          </div>
+        </form>
+      </CardContent>
+    </Card>
+  )
+}
 
 function initials(name: string) {
   return name.split(' ').map((p) => p[0]).join('').slice(0, 2).toUpperCase()
@@ -30,12 +176,15 @@ export function StudentProfile() {
   const [saveError, setSaveError] = React.useState<string | null>(null)
   const [saved, setSaved] = React.useState(false)
   const [intake, setIntake] = React.useState<IntakeForm | null>(null)
+  const [intakeLoaded, setIntakeLoaded] = React.useState(false)
 
   React.useEffect(() => {
     let cancelled = false
     getIntakeForm(user.id)
       .then((data) => {
-        if (!cancelled) setIntake(data)
+        if (cancelled) return
+        setIntake(data)
+        setIntakeLoaded(true)
       })
       .catch(() => {
         // Non-critical for this page; leave the intake card hidden on failure.
@@ -133,27 +282,8 @@ export function StudentProfile() {
             </CardContent>
           </Card>
 
-          {intake && (
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-base">Intake form</CardTitle>
-                <CardDescription>Submitted {formatDate(intake.submitted_at)}</CardDescription>
-              </CardHeader>
-              <CardContent className="flex flex-col gap-3 text-sm">
-                <div>
-                  <p className="font-medium">Experience level</p>
-                  <p className="text-muted-foreground capitalize">{intake.experience_level}</p>
-                </div>
-                <div>
-                  <p className="font-medium">Motivation</p>
-                  <p className="text-muted-foreground">{intake.motivation}</p>
-                </div>
-                <div>
-                  <p className="font-medium">Goals</p>
-                  <p className="text-muted-foreground">{intake.goals}</p>
-                </div>
-              </CardContent>
-            </Card>
+          {intakeLoaded && (
+            <IntakeCard studentId={user.id} intake={intake} onSaved={setIntake} />
           )}
         </div>
       </div>

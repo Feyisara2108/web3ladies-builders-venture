@@ -306,6 +306,22 @@ export async function getIntakeForm(studentId: string): Promise<IntakeForm | nul
   return data
 }
 
+export async function saveIntakeForm(input: {
+  student_id: string
+  motivation: string
+  experience_level: IntakeForm['experience_level']
+  goals: string
+}): Promise<IntakeForm> {
+  const { data, error } = await supabase
+    .from('intake_forms')
+    .upsert(input, { onConflict: 'student_id' })
+    .select()
+    .single()
+
+  if (error) throw error
+  return data
+}
+
 export async function listStudentsByCohort(cohortId?: string): Promise<User[]> {
   let query = supabase.from('users').select('*').eq('role', 'student')
   if (cohortId) query = query.eq('cohort_id', cohortId)
