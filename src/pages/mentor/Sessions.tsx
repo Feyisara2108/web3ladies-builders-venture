@@ -18,7 +18,8 @@ import {
   getUserNames,
   listAttendanceForStudents,
   listSessions,
-  listStudentsByCohort,
+  listStudentsForMentor,
+  mentorCohortIds,
   upsertAttendance,
 } from '@/data/queries'
 import { formatDateTime } from '@/lib/format'
@@ -47,16 +48,15 @@ export function MentorSessions() {
 
   React.useEffect(() => {
     let cancelled = false
-    listStudentsByCohort(user.cohort_id)
-      .then(async (studentData) => {
+    listStudentsForMentor(user)
+      .then(async ({ students: studentData }) => {
         const studentIds = studentData.map((s) => s.id)
         const [sessionData, attendanceData] = await Promise.all([
           listSessions(),
           listAttendanceForStudents(studentIds),
         ])
-        const cohortSessions = user.cohort_id
-          ? sessionData.filter((s) => s.cohort_id === user.cohort_id)
-          : sessionData
+        const cohortIds = mentorCohortIds(user, studentData)
+        const cohortSessions = sessionData.filter((s) => cohortIds.has(s.cohort_id))
         const facilitatorIds = [
           ...new Set(cohortSessions.map((s) => s.facilitator_id).filter((id): id is string => !!id)),
         ]
@@ -76,14 +76,18 @@ export function MentorSessions() {
     return () => {
       cancelled = true
     }
-  }, [user.cohort_id])
+  }, [user])
 
   const activeSession = sessionsList.find((s) => s.id === activeSessionId)
+  const studentsInSession = (sessionId: string | null) => {
+    const session = sessionsList.find((s) => s.id === sessionId)
+    return session ? students.filter((s) => s.cohort_id === session.cohort_id) : []
+  }
 
   function openSession(sessionId: string) {
     const existing = attendanceRecords.filter((r) => r.session_id === sessionId)
     const initial: Record<string, AttendanceRecord['status']> = {}
-    for (const student of students) {
+    for (const student of studentsInSession(sessionId)) {
       const record = existing.find((r) => r.student_id === student.id)
       initial[student.id] = record?.status ?? 'present'
     }
@@ -98,7 +102,7 @@ export function MentorSessions() {
     setSaveError(null)
     try {
       await upsertAttendance(
-        students.map((student) => ({
+        studentsInSession(activeSessionId).map((student) => ({
           session_id: activeSessionId,
           student_id: student.id,
           status: marks[student.id] ?? 'present',
@@ -132,8 +136,12 @@ export function MentorSessions() {
       <PageHeader title="Sessions" description="Manage attendance for cohort sessions." />
 
       <div className="flex flex-col gap-3">
+        {sessionsList.length === 0 && (
+          <p className="text-sm text-muted-foreground">No sessions scheduled for your students' cohorts yet.</p>
+        )}
         {sessionsList.map((session) => {
           const attendance = attendanceRecords.filter((r) => r.session_id === session.id)
+          const expected = studentsInSession(session.id)
           return (
             <Card key={session.id}>
               <CardContent className="flex flex-col justify-between gap-3 pt-6 sm:flex-row sm:items-center">
@@ -149,7 +157,8 @@ export function MentorSessions() {
                     {facilitatorNames.find((f) => f.id === session.facilitator_id)?.full_name ?? 'Unassigned'}
                   </p>
                   <p className="mt-1 text-xs text-muted-foreground">
-                    {attendance.length} of {students.length} marked
+                    {attendance.filter((r) => expected.some((s) => s.id === r.student_id)).length} of{' '}
+                    {expected.length} marked
                   </p>
                 </div>
                 <Button size="sm" onClick={() => openSession(session.id)}>
@@ -168,7 +177,7 @@ export function MentorSessions() {
             <DialogDescription>Mark each student's attendance for this session.</DialogDescription>
           </DialogHeader>
           <div className="flex flex-col gap-2">
-            {students.map((student) => (
+            {studentsInSession(activeSessionId).map((student) => (
               <div
                 key={student.id}
                 className="flex flex-col gap-2 rounded-lg border p-2 sm:flex-row sm:items-center sm:justify-between"

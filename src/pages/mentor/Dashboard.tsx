@@ -13,7 +13,8 @@ import {
   listProgressUpdatesForStudents,
   listProjects,
   listSessions,
-  listStudentsByCohort,
+  listStudentsForMentor,
+  mentorCohortIds,
 } from '@/data/queries'
 import { formatDateTime, stageLabels, timeAgo } from '@/lib/format'
 import type { MentorComment, Project, ProgressUpdate, Session, User } from '@/types'
@@ -37,8 +38,8 @@ export function MentorDashboard() {
 
   React.useEffect(() => {
     let cancelled = false
-    listStudentsByCohort(user.cohort_id)
-      .then(async (studentData) => {
+    listStudentsForMentor(user)
+      .then(async ({ students: studentData }) => {
         const studentIds = studentData.map((s) => s.id)
         const [sessionData, projectData, updateData, commentData] = await Promise.all([
           listSessions(),
@@ -62,10 +63,11 @@ export function MentorDashboard() {
     return () => {
       cancelled = true
     }
-  }, [user.cohort_id, user.id])
+  }, [user])
 
+  const cohortIds = mentorCohortIds(user, students)
   const upcoming = sessions
-    .filter((s) => (!user.cohort_id || s.cohort_id === user.cohort_id) && new Date(s.start_time).getTime() >= Date.now())
+    .filter((s) => cohortIds.has(s.cohort_id) && new Date(s.start_time).getTime() >= Date.now())
     .sort((a, b) => new Date(a.start_time).getTime() - new Date(b.start_time).getTime())
     .slice(0, 3)
 
@@ -92,7 +94,7 @@ export function MentorDashboard() {
     <div className="flex flex-col gap-6">
       <PageHeader
         title={`Welcome back, ${user.full_name.split(' ')[0]}`}
-        description="Here's how your cohort is doing."
+        description="Here's how your students are doing."
       />
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">

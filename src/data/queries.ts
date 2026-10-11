@@ -330,6 +330,53 @@ export async function listStudentsByCohort(cohortId?: string): Promise<User[]> {
   return data ?? []
 }
 
+export type MentorStudentScope = 'assigned' | 'cohort' | 'none'
+
+/**
+ * The students a mentor works with: the ones an admin assigned to them, or —
+ * until any are assigned — everyone in the mentor's own cohort. Deactivated
+ * students are left out. A mentor with neither gets nobody, rather than
+ * every student in the programme.
+ */
+export async function listStudentsForMentor(
+  mentor: Pick<User, 'id' | 'cohort_id'>,
+): Promise<{ students: User[]; scope: MentorStudentScope }> {
+  const assignments = await listMentorAssignments({ mentorId: mentor.id })
+
+  if (assignments.length > 0) {
+    const { data, error } = await supabase
+      .from('users')
+      .select('*')
+      .eq('role', 'student')
+      .eq('is_active', true)
+      .in('id', assignments.map((a) => a.student_id))
+      .order('full_name')
+    if (error) throw error
+    return { students: data ?? [], scope: 'assigned' }
+  }
+
+  if (mentor.cohort_id) {
+    const { data, error } = await supabase
+      .from('users')
+      .select('*')
+      .eq('role', 'student')
+      .eq('is_active', true)
+      .eq('cohort_id', mentor.cohort_id)
+      .order('full_name')
+    if (error) throw error
+    return { students: data ?? [], scope: 'cohort' }
+  }
+
+  return { students: [], scope: 'none' }
+}
+
+/** Cohorts a mentor's sessions come from: their own plus their students'. */
+export function mentorCohortIds(mentor: Pick<User, 'cohort_id'>, students: User[]): Set<string> {
+  const ids = new Set(students.map((s) => s.cohort_id).filter((id): id is string => !!id))
+  if (mentor.cohort_id) ids.add(mentor.cohort_id)
+  return ids
+}
+
 export async function listMentorsByCohort(cohortId?: string): Promise<User[]> {
   let query = supabase.from('users').select('*').eq('role', 'mentor')
   if (cohortId) query = query.eq('cohort_id', cohortId)
