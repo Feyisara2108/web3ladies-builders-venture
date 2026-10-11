@@ -9,13 +9,100 @@ import { Textarea } from '@/components/ui/textarea'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import {
+  createProject,
   getProjectByStudentId,
   listMentorComments,
   updateProjectDetails,
 } from '@/data/queries'
 import { stageLabels, stageOrder, timeAgo } from '@/lib/format'
-import { cn } from '@/lib/utils'
+import { cn, getErrorMessage } from '@/lib/utils'
 import type { MentorComment, Project } from '@/types'
+
+function CreateProjectCard({ onCreated }: { onCreated: (project: Project) => void }) {
+  const { user } = useAuth()
+  const [form, setForm] = React.useState({ name: '', problem_statement: '', solution: '' })
+  const [submitting, setSubmitting] = React.useState(false)
+  const [error, setError] = React.useState<string | null>(null)
+
+  if (!user.cohort_id) {
+    return (
+      <Card>
+        <CardContent className="pt-6 text-sm text-muted-foreground">
+          You're not in a cohort yet, so you can't start a project. Ask your admin to add you to one.
+        </CardContent>
+      </Card>
+    )
+  }
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault()
+    if (!form.name.trim() || !user.cohort_id) return
+    setSubmitting(true)
+    setError(null)
+    try {
+      const created = await createProject({
+        student_id: user.id,
+        cohort_id: user.cohort_id,
+        name: form.name.trim(),
+        problem_statement: form.problem_statement || undefined,
+        solution: form.solution || undefined,
+      })
+      onCreated(created)
+    } catch (err) {
+      setError(getErrorMessage(err, 'Failed to create project'))
+      setSubmitting(false)
+    }
+  }
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>Start your project</CardTitle>
+        <CardDescription>
+          Give it a working name — you can change everything later. Your mentor will move it through the stages.
+        </CardDescription>
+      </CardHeader>
+      <CardContent>
+        <form className="flex flex-col gap-4" onSubmit={handleSubmit}>
+          <div className="flex flex-col gap-2">
+            <Label htmlFor="new-name">Project name</Label>
+            <Input
+              id="new-name"
+              required
+              value={form.name}
+              onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
+            />
+          </div>
+          <div className="flex flex-col gap-2">
+            <Label htmlFor="new-problem">Problem statement (optional)</Label>
+            <Textarea
+              id="new-problem"
+              rows={2}
+              value={form.problem_statement}
+              onChange={(e) => setForm((f) => ({ ...f, problem_statement: e.target.value }))}
+            />
+          </div>
+          <div className="flex flex-col gap-2">
+            <Label htmlFor="new-solution">Solution (optional)</Label>
+            <Textarea
+              id="new-solution"
+              rows={2}
+              value={form.solution}
+              onChange={(e) => setForm((f) => ({ ...f, solution: e.target.value }))}
+            />
+          </div>
+          {error && <p className="text-sm text-destructive">{error}</p>}
+          <div>
+            <Button type="submit" disabled={submitting || !form.name.trim()}>
+              {submitting && <Loader2 className="size-4 animate-spin" />}
+              Create project
+            </Button>
+          </div>
+        </form>
+      </CardContent>
+    </Card>
+  )
+}
 
 export function StudentWorkspace() {
   const { user } = useAuth()
@@ -83,12 +170,21 @@ export function StudentWorkspace() {
   if (!project) {
     return (
       <div className="flex flex-col gap-6">
-        <PageHeader title="Workspace" description="Your project hasn't been created yet." />
-        <Card>
-          <CardContent className="pt-6 text-sm text-muted-foreground">
-            Ask your admin to set up your project record to get started.
-          </CardContent>
-        </Card>
+        <PageHeader title="Workspace" description="You don't have a project yet." />
+        <CreateProjectCard
+          onCreated={(created) => {
+            setProject(created)
+            setForm({
+              name: created.name ?? '',
+              problem_statement: created.problem_statement ?? '',
+              solution: created.solution ?? '',
+              description: created.description ?? '',
+              demo_url: created.demo_url ?? '',
+              repo_url: created.repo_url ?? '',
+              pitch_deck_url: created.pitch_deck_url ?? '',
+            })
+          }}
+        />
       </div>
     )
   }

@@ -1,6 +1,6 @@
 import * as React from 'react'
 import { Link } from 'react-router-dom'
-import { CalendarClock, FolderKanban, Loader2, MessageSquareText, TrendingUp } from 'lucide-react'
+import { CalendarClock, CheckCircle2, Circle, FolderKanban, Loader2, MessageSquareText, TrendingUp } from 'lucide-react'
 import { useAuth } from '@/lib/auth'
 import { PageHeader } from '@/components/PageHeader'
 import { StatCard } from '@/components/StatCard'
@@ -8,6 +8,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import {
+  getIntakeForm,
   getProjectByStudentId,
   getUserNames,
   listMentorComments,
@@ -15,7 +16,7 @@ import {
   listSessions,
 } from '@/data/queries'
 import { formatDateTime, timeAgo, stageLabels } from '@/lib/format'
-import type { MentorComment, Project, ProgressUpdate, Session } from '@/types'
+import type { IntakeForm, MentorComment, Project, ProgressUpdate, Session } from '@/types'
 
 export function StudentDashboard() {
   const { user } = useAuth()
@@ -24,6 +25,7 @@ export function StudentDashboard() {
   const [facilitatorNames, setFacilitatorNames] = React.useState<{ id: string; full_name: string }[]>([])
   const [updates, setUpdates] = React.useState<ProgressUpdate[]>([])
   const [comments, setComments] = React.useState<MentorComment[]>([])
+  const [intake, setIntake] = React.useState<IntakeForm | null>(null)
   const [loading, setLoading] = React.useState(true)
   const [loadError, setLoadError] = React.useState<string | null>(null)
 
@@ -34,8 +36,9 @@ export function StudentDashboard() {
       listSessions(),
       listProgressUpdatesByStudent(user.id),
       listMentorComments({ studentId: user.id }),
+      getIntakeForm(user.id),
     ])
-      .then(async ([projectData, sessionData, updateData, commentData]) => {
+      .then(async ([projectData, sessionData, updateData, commentData, intakeData]) => {
         const facilitatorIds = [
           ...new Set(sessionData.map((s) => s.facilitator_id).filter((id): id is string => !!id)),
         ]
@@ -46,6 +49,7 @@ export function StudentDashboard() {
         setFacilitatorNames(names)
         setUpdates(updateData)
         setComments(commentData)
+        setIntake(intakeData)
       })
       .catch((err) => {
         if (!cancelled) setLoadError(err instanceof Error ? err.message : 'Failed to load dashboard')
@@ -82,6 +86,34 @@ export function StudentDashboard() {
         title={`Welcome back, ${user.full_name.split(' ')[0]}`}
         description="Here's what's happening in your builder journey."
       />
+
+      {(!intake || !project || updates.length === 0) && (
+        <Card>
+          <CardHeader>
+            <CardTitle>Get started</CardTitle>
+          </CardHeader>
+          <CardContent className="flex flex-col gap-2">
+            {[
+              { done: !!intake, label: 'Fill in your intake form', to: '/profile' },
+              { done: !!project, label: 'Start your project', to: '/workspace' },
+              { done: updates.length > 0, label: 'Post your first progress update', to: '/progress' },
+            ].map((step) => (
+              <Link
+                key={step.to}
+                to={step.to}
+                className="flex items-center gap-2 rounded-md px-2 py-1.5 text-sm hover:bg-accent"
+              >
+                {step.done ? (
+                  <CheckCircle2 className="size-4 text-success" />
+                ) : (
+                  <Circle className="size-4 text-muted-foreground" />
+                )}
+                <span className={step.done ? 'text-muted-foreground line-through' : ''}>{step.label}</span>
+              </Link>
+            ))}
+          </CardContent>
+        </Card>
+      )}
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <StatCard
